@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -244,7 +245,16 @@ namespace DSharpPlus
         /// <returns>Calculated Unix time.</returns>
         public static long GetUnixTime(DateTimeOffset dto)
             => dto.ToUnixTimeMilliseconds();
-        
+
+        /// <summary>
+        /// Computes a timestamp from a given snowflake.
+        /// </summary>
+        /// <param name="snowflake">Snowflake to compute a timestamp from.</param>
+        /// <returns>Computed timestamp.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static DateTimeOffset GetSnowflakeTime(this ulong snowflake)
+            => DiscordClient.DiscordEpoch.AddMilliseconds(snowflake >> 22);
+
         /// <summary>
         /// Converts this <see cref="Permissions"/> into human-readable format.
         /// </summary>
@@ -279,7 +289,7 @@ namespace DSharpPlus
             return false;
         }
 
-        internal static void LogTaskFault(this Task task, ILogger<BaseDiscordClient> logger, LogLevel level, EventId eventId, string message)
+        internal static void LogTaskFault(this Task task, ILogger logger, LogLevel level, EventId eventId, string message)
         {
             if (task == null)
                 throw new ArgumentNullException(nameof(task));
@@ -287,34 +297,7 @@ namespace DSharpPlus
             if (logger == null)
                 return;
 
-#if NETSTANDARD1_3
-            task.ContinueWith(t =>
-            {
-                switch (level)
-                {
-                    case LogLevel.Trace:
-                        logger.LogTrace(eventId, t.Exception, message);
-                        break;
-                    case LogLevel.Debug:
-                        logger.LogCritical(eventId, t.Exception, message);
-                        break;
-                    case LogLevel.Information:
-                        logger.LogInformation(eventId, t.Exception, message);
-                        break;
-                    case LogLevel.Warning:
-                        logger.LogWarning(eventId, t.Exception, message);
-                        break;
-                    case LogLevel.Error:
-                        logger.LogError(eventId, t.Exception, message);
-                        break;
-                    case LogLevel.Critical:
-                        logger.LogCritical(eventId, t.Exception, message);
-                        break;
-                }
-            });
-#else
             task.ContinueWith(t => logger.Log(level, eventId, t.Exception, message), TaskContinuationOptions.OnlyOnFaulted);
-#endif 
         }
 
         internal static void Deconstruct<TKey, TValue>(this KeyValuePair<TKey, TValue> kvp, out TKey key, out TValue value)

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -10,6 +9,7 @@ using System.Threading.Tasks;
 using DSharpPlus.Entities;
 using DSharpPlus.Exceptions;
 using DSharpPlus.Net;
+using Microsoft.Extensions.Logging;
 
 namespace DSharpPlus
 {
@@ -39,30 +39,42 @@ namespace DSharpPlus
         internal List<DiscordWebhook> _hooks;
         internal DiscordApiClient _apiclient;
 
+        internal LogLevel _minimumLogLevel;
+        internal string _logTimestampFormat;
+
         /// <summary>
         /// Creates a new webhook client.
         /// </summary>
         public DiscordWebhookClient()
-            : this(null)
+            : this(null, null)
         { }
 
         /// <summary>
-        /// Creates a new webhook client, with specified HTTP proxy settings.
-        /// </summary>
-        /// <param name="proxy">Proxy to use for HTTP connections.</param>
-        public DiscordWebhookClient(IWebProxy proxy)
-            : this(proxy, TimeSpan.FromSeconds(10))
-        { }
-
-        /// <summary>
-        /// Creates a new webhook client, with specified HTTP proxy and timeout settings.
+        /// Creates a new webhook client, with specified HTTP proxy, timeout, and logging settings.
         /// </summary>
         /// <param name="proxy">Proxy to use for HTTP connections.</param>
         /// <param name="timeout">Timeout to use for HTTP requests. Set to <see cref="System.Threading.Timeout.InfiniteTimeSpan"/> to disable timeouts.</param>
         /// <param name="useRelativeRateLimit">Whether to use the system clock for computing rate limit resets. See <see cref="DiscordConfiguration.UseRelativeRatelimit"/> for more details.</param>
-        public DiscordWebhookClient(IWebProxy proxy, TimeSpan timeout, bool useRelativeRateLimit = true)
+        /// <param name="loggerFactory">The optional logging factory to use for this client.</param>
+        /// <param name="minimumLogLevel">The minimum logging level for messages.</param>
+        /// <param name="logTimestampFormat">The timestamp format to use for the logger.</param>
+        public DiscordWebhookClient(IWebProxy proxy = null, TimeSpan? timeout = null, bool useRelativeRateLimit = true, 
+            ILoggerFactory loggerFactory = null, LogLevel minimumLogLevel = LogLevel.Information, string logTimestampFormat = "yyyy-MM-dd HH:mm:ss zzz")
         {
-            this._apiclient = new DiscordApiClient(proxy, timeout, useRelativeRateLimit);
+            this._minimumLogLevel = minimumLogLevel;
+            this._logTimestampFormat = logTimestampFormat;
+
+            if (loggerFactory == null)
+            {
+                loggerFactory = new DefaultLoggerFactory();
+                loggerFactory.AddProvider(new DefaultLoggerProvider(this));
+            }
+
+            var logger = loggerFactory.CreateLogger<DiscordWebhookClient>();
+
+            var parsedTimeout = timeout ?? TimeSpan.FromSeconds(10);
+
+            this._apiclient = new DiscordApiClient(proxy, parsedTimeout, useRelativeRateLimit, logger);
             this._hooks = new List<DiscordWebhook>();
             this.Webhooks = new ReadOnlyCollection<DiscordWebhook>(this._hooks);
         }
@@ -160,7 +172,8 @@ namespace DSharpPlus
             if (_hooks.Any(x => x.Id == webhook.Id))
                 throw new ArgumentException("This webhook is already registered with this client.");
 
-            // see line 110-113 for explanation
+            // see line 128-131 for explanation
+            // For christ's sake, update the line numbers if they change.
             //var nwh = new DiscordWebhook()
             //{
             //    ApiClient = _apiclient,
@@ -228,6 +241,13 @@ namespace DSharpPlus
                 _hooks.Remove(xwh);
 
             return messages;
+        }
+
+        ~DiscordWebhookClient()
+        {
+            this._hooks.Clear();
+            this._hooks = null;
+            this._apiclient.Rest.Dispose();
         }
     }
 }

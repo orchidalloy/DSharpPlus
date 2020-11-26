@@ -69,17 +69,18 @@ namespace DSharpPlus
         protected BaseDiscordClient(DiscordConfiguration config)
         {
             this.Configuration = new DiscordConfiguration(config);
-            this.ApiClient = new DiscordApiClient(this);
-            this.UserCache = new ConcurrentDictionary<ulong, DiscordUser>();
-            this.InternalVoiceRegions = new ConcurrentDictionary<string, DiscordVoiceRegion>();
-            this._voice_regions_lazy = new Lazy<IReadOnlyDictionary<string, DiscordVoiceRegion>>(() => new ReadOnlyDictionary<string, DiscordVoiceRegion>(this.InternalVoiceRegions));
-            
+
             if (this.Configuration.LoggerFactory == null)
             {
                 this.Configuration.LoggerFactory = new DefaultLoggerFactory();
                 this.Configuration.LoggerFactory.AddProvider(new DefaultLoggerProvider(this));
             }
             this.Logger = this.Configuration.LoggerFactory.CreateLogger<BaseDiscordClient>();
+
+            this.ApiClient = new DiscordApiClient(this);
+            this.UserCache = new ConcurrentDictionary<ulong, DiscordUser>();
+            this.InternalVoiceRegions = new ConcurrentDictionary<string, DiscordVoiceRegion>();
+            this._voice_regions_lazy = new Lazy<IReadOnlyDictionary<string, DiscordVoiceRegion>>(() => new ReadOnlyDictionary<string, DiscordVoiceRegion>(this.InternalVoiceRegions));
 
             var a = typeof(DiscordClient).GetTypeInfo().Assembly;
 
@@ -156,6 +157,7 @@ namespace DSharpPlus
         /// Gets a list of regions
         /// </summary>
         /// <returns></returns>
+        /// <exception cref="Exceptions.ServerErrorException">Thrown when Discord is unable to process the request.</exception>
         public Task<IReadOnlyList<DiscordVoiceRegion>> ListVoiceRegionsAsync() 
             => this.ApiClient.ListVoiceRegionsAsync();
 
